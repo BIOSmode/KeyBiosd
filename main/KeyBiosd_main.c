@@ -12,8 +12,7 @@
 #include "class/hid/hid_device.h"
 #include "driver/gpio.h"
 
-#define EXP_BUTTON (GPIO_NUM_0) // Use BOOT signal by default
-#define VEN_BUTTON (GPIO_NUM_35) // Test gpio35
+#define EXP_BUTTON   (GPIO_NUM_0) // Use BOOT signal by default
 static const char *TAG = "example";
 
 /************* TinyUSB descriptors ****************/
@@ -157,28 +156,57 @@ static void exp_send_hid_demo(void)
     }
 }
 
+#define VEN_BUTTON_CNT 4
+
+typedef struct
+{
+    uint8_t gpioPin;
+    bool gpioSts;
+    uint8_t hidKey;
+    bool isShift;
+} biosd_button_info;
+
+biosd_button_info buttonInfo[VEN_BUTTON_CNT];
 static void ven_send_hid_demo(void)
 {
     // Keyboard output: Send key 'bios/BIOS' pressed and released
-    send_keyboard_report(HID_KEY_B, false);
-    send_keyboard_report(HID_KEY_I, false);
-    send_keyboard_report(HID_KEY_O, false);
-    send_keyboard_report(HID_KEY_S, false);
-    send_keyboard_report(HID_KEY_SPACE, false);
-
-    send_keyboard_report(HID_KEY_B, true);
-    send_keyboard_report(HID_KEY_I, true);
-    send_keyboard_report(HID_KEY_O, true);
-    send_keyboard_report(HID_KEY_S, true);
-
-    send_keyboard_report(HID_KEY_ENTER, false);
+    for (uint8_t i = 0; i < VEN_BUTTON_CNT; i++)
+    {
+        if (!buttonInfo[i].gpioSts)
+        {
+            send_keyboard_report(buttonInfo[i].hidKey, buttonInfo[i].isShift);
+        }
+        buttonInfo[i].gpioSts = gpio_get_level(buttonInfo[i].gpioPin);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 void app_main(void)
 {
-    uint64_t enableGpioPin = BIT64(EXP_BUTTON) | BIT64(VEN_BUTTON);
+    uint64_t enableGpioPin = BIT64(EXP_BUTTON);
 
     // Initialize button that will trigger HID reports
+    buttonInfo[0].gpioPin = GPIO_NUM_35;
+    buttonInfo[0].gpioSts = true;
+    buttonInfo[0].hidKey = HID_KEY_B;
+    buttonInfo[0].isShift = true;
+    enableGpioPin |= BIT64(buttonInfo[0].gpioPin);
+    buttonInfo[1].gpioPin = GPIO_NUM_36;
+    buttonInfo[1].gpioSts = true;
+    buttonInfo[1].hidKey = HID_KEY_I;
+    buttonInfo[1].isShift = true;
+    enableGpioPin |= BIT64(buttonInfo[1].gpioPin);
+    buttonInfo[2].gpioPin = GPIO_NUM_37;
+    buttonInfo[2].gpioSts = true;
+    buttonInfo[2].hidKey = HID_KEY_O;
+    buttonInfo[2].isShift = true;
+    enableGpioPin |= BIT64(buttonInfo[2].gpioPin);
+    buttonInfo[3].gpioPin = GPIO_NUM_38;
+    buttonInfo[3].gpioSts = true;
+    buttonInfo[3].hidKey = HID_KEY_S;
+    buttonInfo[3].isShift = true;
+    enableGpioPin |= BIT64(buttonInfo[3].gpioPin);
+
     const gpio_config_t boot_button_config = {.pin_bit_mask = enableGpioPin,
                                               .mode = GPIO_MODE_INPUT,
                                               .intr_type = GPIO_INTR_DISABLE,
@@ -201,19 +229,15 @@ void app_main(void)
     while (1) 
     {
         if (tud_mounted()) {
-            static bool send_hid_data[2] = {true, true};
-            if (send_hid_data[0]) 
+            static bool send_hid_data = true;
+            if (send_hid_data) 
             {
                 exp_send_hid_demo();
             }
-            send_hid_data[0] = !gpio_get_level(EXP_BUTTON);
+            send_hid_data = !gpio_get_level(EXP_BUTTON);
             vTaskDelay(pdMS_TO_TICKS(100));
 
-            if (send_hid_data[1])
-            {
-                ven_send_hid_demo();
-            }
-            send_hid_data[1] = !gpio_get_level(VEN_BUTTON);
+            ven_send_hid_demo();
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
