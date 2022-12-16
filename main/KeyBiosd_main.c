@@ -5,6 +5,7 @@
  */
 
 #include <stdlib.h>
+#include "esp_system.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -13,7 +14,7 @@
 #include "driver/gpio.h"
 
 #define EXP_BUTTON   (GPIO_NUM_0) // Use BOOT signal by default
-static const char *TAG = "example";
+static const char *TAG = "KeyBiosd";
 
 /************* TinyUSB descriptors ****************/
 
@@ -75,7 +76,8 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 
 /********* Application ***************/
 
-typedef enum {
+typedef enum 
+{
     MOUSE_DIR_RIGHT,
     MOUSE_DIR_DOWN,
     MOUSE_DIR_LEFT,
@@ -92,16 +94,20 @@ static void mouse_draw_square_next_delta(int8_t *delta_x_ret, int8_t *delta_y_re
     static uint32_t distance = 0;
 
     // Calculate next delta
-    if (cur_dir == MOUSE_DIR_RIGHT) {
+    if (cur_dir == MOUSE_DIR_RIGHT) 
+    {
         *delta_x_ret = DELTA_SCALAR;
         *delta_y_ret = 0;
-    } else if (cur_dir == MOUSE_DIR_DOWN) {
+    } else if (cur_dir == MOUSE_DIR_DOWN) 
+    {
         *delta_x_ret = 0;
         *delta_y_ret = DELTA_SCALAR;
-    } else if (cur_dir == MOUSE_DIR_LEFT) {
+    } else if (cur_dir == MOUSE_DIR_LEFT) 
+    {
         *delta_x_ret = -DELTA_SCALAR;
         *delta_y_ret = 0;
-    } else if (cur_dir == MOUSE_DIR_UP) {
+    } else if (cur_dir == MOUSE_DIR_UP) 
+    {
         *delta_x_ret = 0;
         *delta_y_ret = -DELTA_SCALAR;
     }
@@ -109,7 +115,8 @@ static void mouse_draw_square_next_delta(int8_t *delta_x_ret, int8_t *delta_y_re
     // Update cumulative distance for current direction
     distance += DELTA_SCALAR;
     // Check if we need to change direction
-    if (distance >= DISTANCE_MAX) {
+    if (distance >= DISTANCE_MAX) 
+    {
         distance = 0;
         cur_dir++;
         if (cur_dir == MOUSE_DIR_MAX) {
@@ -130,8 +137,7 @@ static void send_keyboard_report(uint8_t keyVal, bool isShift)
     {
         keycode[0] = keyVal;
     }
-    ESP_LOGI(TAG, "Sending Keyboard report %x,%x,%x,%x,%x,%x", keycode[0], keycode[1], keycode[2]
-                                                             , keycode[3], keycode[4], keycode[5]);
+    ESP_LOGI(TAG, "Sending Keyboard report %x,%x,%x,%x,%x,%x", keycode[0], keycode[1], keycode[2], keycode[3], keycode[4], keycode[5]);
     tud_hid_keyboard_report(HID_ITF_PROTOCOL_KEYBOARD, 0, keycode);
     vTaskDelay(pdMS_TO_TICKS(50));
     tud_hid_keyboard_report(HID_ITF_PROTOCOL_KEYBOARD, 0, NULL);
@@ -140,15 +146,12 @@ static void send_keyboard_report(uint8_t keyVal, bool isShift)
 
 static void exp_send_hid_demo(void)
 {
-    // Keyboard output: Send key 'a/A' pressed and released
-    send_keyboard_report(HID_KEY_A, false);
-    send_keyboard_report(HID_KEY_SPACE, false);
-
     // Mouse output: Move mouse cursor in square trajectory
     ESP_LOGI(TAG, "Sending Mouse report");
     int8_t delta_x;
     int8_t delta_y;
-    for (int i = 0; i < (DISTANCE_MAX / DELTA_SCALAR) * 4; i++) {
+    for (int i = 0; i < (DISTANCE_MAX / DELTA_SCALAR) * 4; i++) 
+    {
         // Get the next x and y delta in the draw square pattern
         mouse_draw_square_next_delta(&delta_x, &delta_y);
         tud_hid_mouse_report(HID_ITF_PROTOCOL_MOUSE, 0x00, delta_x, delta_y, 0, 0);
@@ -177,44 +180,130 @@ static void ven_send_hid_demo(void)
             send_keyboard_report(buttonInfo[i].hidKey, buttonInfo[i].isShift);
         }
         buttonInfo[i].gpioSts = gpio_get_level(buttonInfo[i].gpioPin);
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
+}
+
+static void ven_send_number_hid_demo(uint32_t num)
+{
+    if (num != 0)
+    {
+        send_keyboard_report(HID_KEY_1 + num - 1, false);
+    }
+    else
+    {
+        send_keyboard_report(HID_KEY_0, false);
+    }
+}
+
+static void ven_scan_switch_demo(void)
+{
+    bool rowVal[4], isFind = false;
+    uint8_t row = 0, col = 0;
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_15, 0));
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_16, 0));
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_17, 0));
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_18, 0));
+    rowVal[0] = gpio_get_level(GPIO_NUM_4);
+    rowVal[1] = gpio_get_level(GPIO_NUM_5);
+    rowVal[2] = gpio_get_level(GPIO_NUM_6);
+    rowVal[3] = gpio_get_level(GPIO_NUM_7);
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        if (!rowVal[i])
+        {
+            row = i;
+            isFind = true;
+        }
+    }
+
+    if (isFind)
+    {
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_15, 1));
+        if (gpio_get_level(GPIO_NUM_4 + row))
+        {
+            col = 3;
+        }
+
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_15, 0));
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_16, 1));
+        if (gpio_get_level(GPIO_NUM_4 + row))
+        {
+            col = 2;
+        }
+
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_16, 0));
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_17, 1));
+        if (gpio_get_level(GPIO_NUM_4 + row))
+        {
+            col = 1;
+        }
+
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_17, 0));
+        ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_18, 1));
+        if (gpio_get_level(GPIO_NUM_4 + row))
+        {
+            col = 0;
+        }
+        uint32_t buttonVal = row * 4 + col + 1;
+        ESP_LOGI(TAG, "Button S%lu", buttonVal);
+        send_keyboard_report(HID_KEY_S, true);
+        if (buttonVal > 9)
+        {
+            ven_send_number_hid_demo(buttonVal / 10);
+        }
+        ven_send_number_hid_demo(buttonVal % 10);
+    }
+}
+
+static void ven_init_button_info(biosd_button_info *pButInfo, uint8_t gpioPin, bool gpioInitSts, uint8_t hidKey, bool isShift)
+{
+    pButInfo->gpioPin = gpioPin;
+    pButInfo->gpioSts = gpioInitSts;
+    pButInfo->hidKey = hidKey;
+    pButInfo->isShift = isShift;
+    const gpio_config_t button_config = {.pin_bit_mask =BIT64(gpioPin),
+                                        .mode = GPIO_MODE_INPUT,
+                                        .intr_type = GPIO_INTR_DISABLE,
+                                        .pull_up_en = gpioInitSts ? true : false,
+                                        .pull_down_en = gpioInitSts ? false : true,
+                                        };
+    ESP_ERROR_CHECK(gpio_config(&button_config));
 }
 
 void app_main(void)
 {
-    uint64_t enableGpioPin = BIT64(EXP_BUTTON);
-
-    // Initialize button that will trigger HID reports
-    buttonInfo[0].gpioPin = GPIO_NUM_35;
-    buttonInfo[0].gpioSts = true;
-    buttonInfo[0].hidKey = HID_KEY_B;
-    buttonInfo[0].isShift = true;
-    enableGpioPin |= BIT64(buttonInfo[0].gpioPin);
-    buttonInfo[1].gpioPin = GPIO_NUM_36;
-    buttonInfo[1].gpioSts = true;
-    buttonInfo[1].hidKey = HID_KEY_I;
-    buttonInfo[1].isShift = true;
-    enableGpioPin |= BIT64(buttonInfo[1].gpioPin);
-    buttonInfo[2].gpioPin = GPIO_NUM_37;
-    buttonInfo[2].gpioSts = true;
-    buttonInfo[2].hidKey = HID_KEY_O;
-    buttonInfo[2].isShift = true;
-    enableGpioPin |= BIT64(buttonInfo[2].gpioPin);
-    buttonInfo[3].gpioPin = GPIO_NUM_38;
-    buttonInfo[3].gpioSts = true;
-    buttonInfo[3].hidKey = HID_KEY_S;
-    buttonInfo[3].isShift = true;
-    enableGpioPin |= BIT64(buttonInfo[3].gpioPin);
-
-    const gpio_config_t boot_button_config = {.pin_bit_mask = enableGpioPin,
+    ESP_LOGI(TAG, "ESP IDF Version: %s.\n", esp_get_idf_version());
+    
+    const gpio_config_t boot_button_config = {.pin_bit_mask = BIT64(EXP_BUTTON),
                                               .mode = GPIO_MODE_INPUT,
                                               .intr_type = GPIO_INTR_DISABLE,
                                               .pull_up_en = true,
                                               .pull_down_en = false,
                                              };
     ESP_ERROR_CHECK(gpio_config(&boot_button_config));
-    ESP_LOGI(TAG, "Enable Gpio 0x%llx", enableGpioPin);
+
+    // Initialize button that will trigger HID reports
+    ven_init_button_info(&buttonInfo[0], GPIO_NUM_35, true, HID_KEY_B, true);
+    ven_init_button_info(&buttonInfo[1], GPIO_NUM_36, true, HID_KEY_I, true);
+    ven_init_button_info(&buttonInfo[2], GPIO_NUM_37, true, HID_KEY_O, true);
+    ven_init_button_info(&buttonInfo[3], GPIO_NUM_38, true, HID_KEY_S, true);
+
+    // Iinitialize button that 
+    const gpio_config_t col_button_config = {.pin_bit_mask = BIT64(GPIO_NUM_15) | BIT64(GPIO_NUM_16) | BIT64(GPIO_NUM_17) | BIT64(GPIO_NUM_18),
+                                              .mode = GPIO_MODE_OUTPUT,
+                                              .intr_type = GPIO_INTR_DISABLE,
+                                              .pull_up_en = false,
+                                              .pull_down_en = true,
+                                             };
+    ESP_ERROR_CHECK(gpio_config(&col_button_config));
+
+    const gpio_config_t row_button_config = {.pin_bit_mask = BIT64(GPIO_NUM_4) | BIT64(GPIO_NUM_5) | BIT64(GPIO_NUM_6) | BIT64(GPIO_NUM_7),
+                                              .mode = GPIO_MODE_INPUT,
+                                              .intr_type = GPIO_INTR_DISABLE,
+                                              .pull_up_en = true,
+                                              .pull_down_en = false,
+                                             };
+    ESP_ERROR_CHECK(gpio_config(&row_button_config));
 
     ESP_LOGI(TAG, "USB initialization Start");
     const tinyusb_config_t tusb_cfg = {.device_descriptor = NULL,
@@ -238,6 +327,7 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(100));
 
             ven_send_hid_demo();
+            ven_scan_switch_demo();
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
