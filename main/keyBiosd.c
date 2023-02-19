@@ -54,19 +54,20 @@ typedef enum
 /**********************************************/
 /****************** VARIABLE ******************/
 /**********************************************/
+static const char *TAG = "KeyBiosd";
+
 /**
  * @brief HID report descriptor
  *
  * In this example we implement Keyboard + Mouse HID device,
  * so we must define both report descriptors
  */
-static const char *TAG = "KeyBiosd";
-
 const uint8_t hid_report_descriptor[] = 
 {
     TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(HID_ITF_PROTOCOL_KEYBOARD) ),
     TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(HID_ITF_PROTOCOL_MOUSE) )
 };
+
 /**
  * @brief Configuration descriptor
  *
@@ -243,6 +244,7 @@ static void ven_init_button_info(biosd_button_info_t *pButInfo, uint8_t gpioPin,
                                         };
     ESP_ERROR_CHECK(gpio_config(&button_config));
 }
+
 /**********************************************/
 /************* PUBLIC FUNCTION ****************/
 /**********************************************/
@@ -324,18 +326,16 @@ void ven_OneTimeInit(void)
 
     // Initialize matrix keyboard gpio
     const gpio_config_t col_button_config = {.pin_bit_mask = BIT64(MATRIX_KEYBOARD_C1) | BIT64(MATRIX_KEYBOARD_C2) | BIT64(MATRIX_KEYBOARD_C3) | BIT64(MATRIX_KEYBOARD_C4),
-                                              .mode = GPIO_MODE_OUTPUT,
-                                              .intr_type = GPIO_INTR_DISABLE,
-                                              .pull_up_en = false,
-                                              .pull_down_en = true,
-                                             };
+                                             .mode = GPIO_MODE_OUTPUT,
+                                             .intr_type = GPIO_INTR_DISABLE,
+                                             .pull_up_en = false,
+                                             .pull_down_en = true};
     ESP_ERROR_CHECK(gpio_config(&col_button_config));
     const gpio_config_t row_button_config = {.pin_bit_mask = BIT64(MATRIX_KEYBOARD_R1) | BIT64(MATRIX_KEYBOARD_R2) | BIT64(MATRIX_KEYBOARD_R3) | BIT64(MATRIX_KEYBOARD_R4),
-                                              .mode = GPIO_MODE_INPUT,
-                                              .intr_type = GPIO_INTR_DISABLE,
-                                              .pull_up_en = true,
-                                              .pull_down_en = false,
-                                             };
+                                             .mode = GPIO_MODE_INPUT,
+                                             .intr_type = GPIO_INTR_DISABLE,
+                                             .pull_up_en = true,
+                                             .pull_down_en = false};
     ESP_ERROR_CHECK(gpio_config(&row_button_config));
 
     ESP_LOGI(TAG, "USB initialization Start");
@@ -363,4 +363,6 @@ void ven_Runner(void)
         ven_send_hid_demo();
         ven_scan_switch_demo();
     }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
 }

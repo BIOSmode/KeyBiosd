@@ -19,6 +19,5 @@ void app_main(void)
     while (1) 
     {
         ven_Runner();
-        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
